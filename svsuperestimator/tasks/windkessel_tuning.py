@@ -521,7 +521,7 @@ class _Forward_Model:
         # Set new total resistance at each outlet
         boundary_conditions = config["boundary_conditions"]
         for i, bc_id in enumerate(self.outlet_bc_ids):
-            ki = np.exp(sample[f"k{i}"])
+            ki = np.exp(sample[i])
             bc_values = boundary_conditions[bc_id]["bc_values"]
             bc_values["Rp"] = ki / (1.0 + self._distal_to_proximal[i])
             bc_values["Rd"] = ki - bc_values["Rp"]
