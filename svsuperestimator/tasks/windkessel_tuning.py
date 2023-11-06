@@ -74,7 +74,7 @@ class WindkesselTuning(Task):
         self.database["theta_obs"] = theta_obs.tolist()
 
         # Setup forward model
-        forward_model = _Forward_Model(zerod_config_handler)
+        forward_model = _Forward_ModelRpRd(zerod_config_handler)
 
         # Determine target observations through one forward evaluation
         y_obs = np.array(self.config["y_obs"])
@@ -510,6 +510,8 @@ class _Forward_Model:
             for bc in self.outlet_bcs.values()
         ]
 
+
+class _Forward_ModelRpRd(_Forward_Model):
     def evaluate(self, sample: np.ndarray) -> np.ndarray:
         """Objective function for the optimization.
 
@@ -549,7 +551,7 @@ class _Forward_Model:
 class _SMCRunner:
     def __init__(
         self,
-        forward_model: _Forward_Model,
+        forward_model: _Forward_ModelRpRd,
         y_obs: np.ndarray,
         len_theta: int,
         likelihood_std_vector: np.ndarray,
