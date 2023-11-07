@@ -549,7 +549,7 @@ class _Forward_ModelRpRd(_Forward_Model):
 class _SMCRunner:
     def __init__(
         self,
-        forward_model: _Forward_ModelRpRd,
+        forward_model: _Forward_Model,
         y_obs: np.ndarray,
         len_theta: int,
         likelihood_std_vector: np.ndarray,
