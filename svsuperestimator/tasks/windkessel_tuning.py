@@ -74,7 +74,7 @@ class WindkesselTuning(Task):
         self.database["theta_obs"] = theta_obs.tolist()
 
         # Setup forward model
-        forward_model = _Forward_ModelRpRd(zerod_config_handler)
+        self.forward_model = _Forward_ModelRpRd(zerod_config_handler)
 
         # Determine target observations through one forward evaluation
         y_obs = np.array(self.config["y_obs"])
@@ -89,7 +89,7 @@ class WindkesselTuning(Task):
         # Setup the iterator
         self.log("Setup tuning process")
         smc_runner = _SMCRunner(
-            forward_model=forward_model,
+            forward_model=self.forward_model,
             y_obs=y_obs,
             len_theta=len(theta_obs),
             likelihood_std_vector=std_vector,
@@ -193,18 +193,17 @@ class WindkesselTuning(Task):
                 )
             )
 
-        forward_model = _Forward_ModelRpRd(zerod_config_handler)
         for sample, name in zip([wmean, max_post], ["mean", "map"]):
             # set boundary conditions
-            forward_model.evaluate(sample)
+            self.forward_model.evaluate(sample)
 
             # write configuration to file
             fn = os.path.join(self.output_folder, "solver_" + name + ".in")
-            forward_model.to_file(fn)
+            self.forward_model.to_file(fn)
 
             # write 0D results to file
             fn = os.path.join(self.output_folder, "solution_" + name + ".csv")
-            forward_model.simulate(fn)
+            self.forward_model.simulate(fn)
 
     def generate_report(self) -> visualizer.Report:
         """Generate the task report."""
@@ -532,13 +531,8 @@ class _Forward_Model:
         return np.array([p_inlet.min(), p_inlet.max(), *q_outlet_mean])
 
     def change_boundary_conditions(self, boundary_conditions, sample):
-        """Dummy function
-
-        Specify in derived class how boundary conditions are set with parameters
-        """
-        raise RuntimeError(
-            "Implement change_boundary_conditions in derived class."
-        )
+        """Specify how boundary conditions are set with parameters"""
+        raise NotImplementedError
 
 
 class _Forward_ModelRpRd(_Forward_Model):
