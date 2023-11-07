@@ -45,7 +45,8 @@ class WindkesselTuning(Task):
         **Task.DEFAULTS,
     }
 
-    _THETA_RANGE = (7.0, 13.0)
+    # _THETA_RANGE = (7.0, 13.0)
+    _THETA_RANGE = np.array([[11.0, 13.0], [-1.0, 4.0]])
 
     def core_run(self) -> None:
         """Core routine of the task."""
@@ -74,7 +75,7 @@ class WindkesselTuning(Task):
         self.database["theta_obs"] = theta_obs.tolist()
 
         # Setup forward model
-        self.forward_model = _Forward_ModelRpRd(zerod_config_handler)
+        self.forward_model = _Forward_ModelRC(zerod_config_handler)
 
         # Determine target observations through one forward evaluation
         y_obs = np.array(self.config["y_obs"])
@@ -246,12 +247,13 @@ class WindkesselTuning(Task):
         theta_names = [rf"$\theta_{i}$" for i in range(len(bc_names))]
 
         # Create parallel coordinates plot
+        plot_range = [np.min(self._THETA_RANGE[:]), np.max(self._THETA_RANGE[:])]
         paracoords = visualizer.Plot2D()
         paracoords.add_parallel_coordinates_plots(
             particles.T,
             bc_names,
             color_by=weights,
-            plotrange=self._THETA_RANGE,
+            plotrange=plot_range,
         )
 
         # Add heatmap for the covariance
@@ -279,20 +281,20 @@ class WindkesselTuning(Task):
         }
 
         # Create distribition plots for all boundary conditions
-        for i, bc_name in enumerate(bc_names):
-            report.add(f"Results for {bc_name}")
+        for i in range(particles.shape[1]):
+            report.add(f"Results for theta_{i}")
 
             # Calculate histogram data
             bandwidth = 0.02
             bins = int(
-                (self._THETA_RANGE[1] - self._THETA_RANGE[0]) / bandwidth
+                (self._THETA_RANGE[i][1] - self._THETA_RANGE[i][0]) / bandwidth
             )
             counts, bin_edges = np.histogram(
                 particles[:, i],
                 bins=bins,
                 weights=weights,
                 density=True,
-                range=self._THETA_RANGE,
+                range=self._THETA_RANGE[i],
             )
 
             # Create kernel density estimation plot for BC
@@ -300,7 +302,7 @@ class WindkesselTuning(Task):
                 title="Weighted histogram and kernel density estimation",
                 xaxis_title=theta_names[i],
                 yaxis_title="Kernel density",
-                xaxis_range=self._THETA_RANGE,
+                xaxis_range=self._THETA_RANGE[i],
             )
             distplot.add_bar_trace(
                 x=bin_edges,
@@ -359,61 +361,61 @@ class WindkesselTuning(Task):
             )
             report.add([distplot])
 
-            pressure_plot = visualizer.Plot2D(
-                title="Pressure",
-                xaxis_title=r"$s$",
-                yaxis_title=r"$mmHg$",
-            )
-            bc_result = result_map[result_map.name == bc_map[bc_name]["name"]]
-            times = np.array(bc_result["time"])[-num_pts_per_cycle:]
-            times -= times[0]
-            pressure_plot.add_line_trace(
-                x=times,
-                y=taskutils.cgs_pressure_to_mmgh(
-                    bc_result[bc_map[bc_name]["pressure"]].iloc[
-                        -num_pts_per_cycle:
-                    ]
-                ),
-                **map_opts,
-            )
-            bc_result = result_mean[result_map.name == bc_map[bc_name]["name"]]
-            pressure_plot.add_line_trace(
-                x=times,
-                y=taskutils.cgs_pressure_to_mmgh(
-                    bc_result[bc_map[bc_name]["pressure"]].iloc[
-                        -num_pts_per_cycle:
-                    ]
-                ),
-                **mean_opts,
-            )
+            # pressure_plot = visualizer.Plot2D(
+            #     title="Pressure",
+            #     xaxis_title=r"$s$",
+            #     yaxis_title=r"$mmHg$",
+            # )
+            # bc_result = result_map[result_map.name == bc_map[bc_name]["name"]]
+            # times = np.array(bc_result["time"])[-num_pts_per_cycle:]
+            # times -= times[0]
+            # pressure_plot.add_line_trace(
+            #     x=times,
+            #     y=taskutils.cgs_pressure_to_mmgh(
+            #         bc_result[bc_map[bc_name]["pressure"]].iloc[
+            #             -num_pts_per_cycle:
+            #         ]
+            #     ),
+            #     **map_opts,
+            # )
+            # bc_result = result_mean[result_map.name == bc_map[bc_name]["name"]]
+            # pressure_plot.add_line_trace(
+            #     x=times,
+            #     y=taskutils.cgs_pressure_to_mmgh(
+            #         bc_result[bc_map[bc_name]["pressure"]].iloc[
+            #             -num_pts_per_cycle:
+            #         ]
+            #     ),
+            #     **mean_opts,
+            # )
 
-            flow_plot = visualizer.Plot2D(
-                title="Flow",
-                xaxis_title=r"$s$",
-                yaxis_title=r"$\frac{l}{min}$",
-            )
-            bc_result = result_map[result_map.name == bc_map[bc_name]["name"]]
-            flow_plot.add_line_trace(
-                x=times,
-                y=taskutils.cgs_flow_to_lmin(
-                    bc_result[bc_map[bc_name]["flow"]].iloc[
-                        -num_pts_per_cycle:
-                    ]
-                ),
-                **map_opts,
-            )
-            bc_result = result_mean[result_map.name == bc_map[bc_name]["name"]]
-            flow_plot.add_line_trace(
-                x=times,
-                y=taskutils.cgs_flow_to_lmin(
-                    bc_result[bc_map[bc_name]["flow"]].iloc[
-                        -num_pts_per_cycle:
-                    ]
-                ),
-                **mean_opts,
-            )
+            # flow_plot = visualizer.Plot2D(
+            #     title="Flow",
+            #     xaxis_title=r"$s$",
+            #     yaxis_title=r"$\frac{l}{min}$",
+            # )
+            # bc_result = result_map[result_map.name == bc_map[bc_name]["name"]]
+            # flow_plot.add_line_trace(
+            #     x=times,
+            #     y=taskutils.cgs_flow_to_lmin(
+            #         bc_result[bc_map[bc_name]["flow"]].iloc[
+            #             -num_pts_per_cycle:
+            #         ]
+            #     ),
+            #     **map_opts,
+            # )
+            # bc_result = result_mean[result_map.name == bc_map[bc_name]["name"]]
+            # flow_plot.add_line_trace(
+            #     x=times,
+            #     y=taskutils.cgs_flow_to_lmin(
+            #         bc_result[bc_map[bc_name]["flow"]].iloc[
+            #             -num_pts_per_cycle:
+            #         ]
+            #     ),
+            #     **mean_opts,
+            # )
 
-            report.add([pressure_plot, flow_plot])
+            # report.add([pressure_plot, flow_plot])
 
         return report
 
@@ -518,7 +520,7 @@ class _Forward_Model:
             solver.run()
         except RuntimeError:
             print("WARNING: Forward model evaluation failed.")
-            return np.array([9e99] * (len(self.bc_names) + 2))
+            return np.array([9e99] * (len(self.outlet_dof_names) + 2))
 
         # Extract minimum and maximum inlet pressure for last cardiac cycle
         p_inlet = solver.get_single_result(self.inlet_dof_name)
@@ -546,6 +548,25 @@ class _Forward_ModelRpRd(_Forward_Model):
             bc_values["C"] = self._time_constants[i] / bc_values["Rd"]
 
 
+class _Forward_ModelRC(_Forward_Model):
+    def change_boundary_conditions(self, boundary_conditions, sample):
+        # only modify last boundary condition
+        bc_id = self.outlet_bc_ids[-1]
+        bc_values = boundary_conditions[bc_id]["bc_values"]
+
+        # # modify ratios of bc values
+        # r_ratio = np.exp(sample[0])
+        # rc_ratio = np.exp(sample[1])
+
+        # # Rp is const
+        bc_values["Rd"] = r_ratio * bc_values["Rp"]
+        bc_values["C"] = rc_ratio / bc_values["Rd"]
+        # bc_values["Rd"] = np.exp(sample[0])
+        # for i, bc_id in enumerate(self.outlet_bc_ids):
+        #     bc_values = boundary_conditions[bc_id]["bc_values"]
+        #     bc_values["C"] *= np.exp(sample[1])
+
+
 class _SMCRunner:
     def __init__(
         self,
@@ -553,7 +574,7 @@ class _SMCRunner:
         y_obs: np.ndarray,
         len_theta: int,
         likelihood_std_vector: np.ndarray,
-        prior_bounds: tuple,
+        prior_bounds: list,
         num_particles: int,
         resampling_strategy: str,
         resampling_threshold: float,
@@ -565,7 +586,7 @@ class _SMCRunner:
 
         prior = dists.StructDist(
             {
-                f"k{i}": dists.Uniform(a=prior_bounds[0], b=prior_bounds[1])
+                f"k{i}": dists.Uniform(a=prior_bounds[i][0], b=prior_bounds[i][1])
                 for i in range(len_theta)
             }
         )
