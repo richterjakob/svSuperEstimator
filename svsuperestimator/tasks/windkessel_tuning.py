@@ -193,35 +193,18 @@ class WindkesselTuning(Task):
                 )
             )
 
-        outlet_bcs = zerod_config_handler.outlet_boundary_conditions.values()
-        distal_to_proximals = [
-            bc["bc_values"]["Rd"] / bc["bc_values"]["Rp"] for bc in outlet_bcs
-        ]
-        time_constants = [
-            bc["bc_values"]["Rd"] * bc["bc_values"]["C"] for bc in outlet_bcs
-        ]
-        for i, bc in enumerate(outlet_bcs):
-            ki = np.exp(wmean[i])
-            bc["bc_values"]["Rp"] = ki / (1.0 + distal_to_proximals[i])
-            bc["bc_values"]["Rd"] = ki - bc["bc_values"]["Rp"]
-            bc["bc_values"]["C"] = time_constants[i] / bc["bc_values"]["Rd"]
-        zerod_config_handler.to_file(
-            os.path.join(self.output_folder, "solver_0d_mean.in")
-        )
-        svzerodplus.simulate(zerod_config_handler.data).to_csv(
-            os.path.join(self.output_folder, "solution_mean.csv")
-        )
-        for i, bc in enumerate(outlet_bcs):
-            ki = np.exp(max_post[i])
-            bc["bc_values"]["Rp"] = ki / (1.0 + distal_to_proximals[i])
-            bc["bc_values"]["Rd"] = ki - bc["bc_values"]["Rp"]
-            bc["bc_values"]["C"] = time_constants[i] / bc["bc_values"]["Rd"]
-        zerod_config_handler.to_file(
-            os.path.join(self.output_folder, "solver_0d_map.in")
-        )
-        svzerodplus.simulate(zerod_config_handler.data).to_csv(
-            os.path.join(self.output_folder, "solution_map.csv")
-        )
+        forward_model = _Forward_ModelRpRd(zerod_config_handler)
+        for sample, name in zip([wmean, max_post], ["mean", "map"]):
+            # set boundary conditions
+            forward_model.evaluate(sample)
+
+            # write configuration to file
+            fn = os.path.join(self.output_folder, "solver_" + name + ".in")
+            forward_model.to_file(fn)
+
+            # write 0D results to file
+            fn = os.path.join(self.output_folder, "solution_" + name + ".csv")
+            forward_model.simulate(fn)
 
     def generate_report(self) -> visualizer.Report:
         """Generate the task report."""
@@ -480,6 +463,7 @@ class _Forward_Model:
             zerod_config: 0D simulation config handler.
         """
 
+        self.based_zerod = zerod_config
         self.base_config = zerod_config.data.copy()
         self.outlet_bcs = zerod_config.outlet_boundary_conditions
         self.outlet_bc_ids = []
@@ -510,8 +494,14 @@ class _Forward_Model:
             for bc in self.outlet_bcs.values()
         ]
 
+    def to_file(self, filename: str):
+        """Write configuration to 0D input file"""
+        self.based_zerod.to_file(filename)
 
-class _Forward_ModelRpRd(_Forward_Model):
+    def simulate(self, filename: str):
+        """Run forward simulation with saving results to csv"""
+        svzerodplus.simulate(self.base_config).to_csv(filename)
+
     def evaluate(self, sample: np.ndarray) -> np.ndarray:
         """Objective function for the optimization.
 
@@ -520,14 +510,8 @@ class _Forward_ModelRpRd(_Forward_Model):
         """
         config = self.base_config.copy()
 
-        # Set new total resistance at each outlet
-        boundary_conditions = config["boundary_conditions"]
-        for i, bc_id in enumerate(self.outlet_bc_ids):
-            ki = np.exp(sample[i])
-            bc_values = boundary_conditions[bc_id]["bc_values"]
-            bc_values["Rp"] = ki / (1.0 + self._distal_to_proximal[i])
-            bc_values["Rd"] = ki - bc_values["Rp"]
-            bc_values["C"] = self._time_constants[i] / bc_values["Rd"]
+        # Change boundary conditions (set in derived class)
+        self.change_boundary_conditions(config["boundary_conditions"], sample)
 
         # Run simulation
         try:
@@ -546,6 +530,26 @@ class _Forward_ModelRpRd(_Forward_Model):
         ]
 
         return np.array([p_inlet.min(), p_inlet.max(), *q_outlet_mean])
+
+    def change_boundary_conditions(self, boundary_conditions, sample):
+        """Dummy function
+
+        Specify in derived class how boundary conditions are set with parameters
+        """
+        raise RuntimeError(
+            "Implement change_boundary_conditions in derived class."
+        )
+
+
+class _Forward_ModelRpRd(_Forward_Model):
+    def change_boundary_conditions(self, boundary_conditions, sample):
+        # Set new total resistance at each outlet
+        for i, bc_id in enumerate(self.outlet_bc_ids):
+            ki = np.exp(sample[i])
+            bc_values = boundary_conditions[bc_id]["bc_values"]
+            bc_values["Rp"] = ki / (1.0 + self._distal_to_proximal[i])
+            bc_values["Rd"] = ki - bc_values["Rp"]
+            bc_values["C"] = self._time_constants[i] / bc_values["Rd"]
 
 
 class _SMCRunner:
