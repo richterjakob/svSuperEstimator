@@ -60,7 +60,7 @@ class GridSampling(WindkesselTuning):
         self.database["theta_obs"] = theta_obs.tolist()
 
         # Setup forward model
-        forward_model = _Forward_Model(zerod_config_handler)
+        self.forward_model = _Forward_Model(zerod_config_handler)
 
         # Determine target observations through one forward evaluation
         y_obs = np.array(self.config["y_obs"])
@@ -75,7 +75,7 @@ class GridSampling(WindkesselTuning):
         # Setup the iterator
         self.log("Setup tuning process")
         smc_runner = _GridRunner(
-            forward_model=forward_model,
+            forward_model=self.forward_model,
             y_obs=y_obs,
             len_theta=len(theta_obs),
             likelihood_std_vector=std_vector,
@@ -154,6 +154,7 @@ class _GridRunner:
         )
 
         all_logpost = self.loglik(all_particles)
-        all_weights = np.ones(len(all_particles)).reshape(-1)
+        all_weights = np.exp(all_logpost)
+        all_weights /= np.sum(all_weights)
 
         return [all_particles], [all_weights], [all_logpost]

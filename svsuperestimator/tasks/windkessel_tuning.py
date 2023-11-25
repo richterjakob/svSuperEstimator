@@ -286,9 +286,10 @@ class WindkesselTuning(Task):
 
             # Calculate histogram data
             bandwidth = 0.02
-            bins = int(
-                (self._THETA_RANGE[i][1] - self._THETA_RANGE[i][0]) / bandwidth
-            )
+            # bins = int(
+            #     (self._THETA_RANGE[i][1] - self._THETA_RANGE[i][0]) / bandwidth
+            # )
+            bins = self.config["num_samples"]
             counts, bin_edges = np.histogram(
                 particles[:, i],
                 bins=bins,
